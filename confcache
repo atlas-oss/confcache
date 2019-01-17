@@ -1,0 +1,550 @@
+#!/usr/bin/python
+# Copyright: 2005 Brian Harring (ferringb@gentoo.org)
+# License: GPL2
+# $Header: /home/cvsrep/confcache/confcache,v 1.17 2005/12/26 08:55:32 bharring Exp $
+
+import os, sys, stat, fcntl, shelve, tempfile, re, shutil, glob
+import itertools
+
+confcache_db_compatibility = 1
+CONFCACHE_SANDBOX_SCRIPT = "/usr/share/confcache/redirect.sh"
+DEFAULT_SANDBOX_PATH = "/usr/bin/sandbox"
+
+if not hasattr(__builtins__, "set"):
+	try:
+		from sets import Set as set
+	except ImportError:
+		def set(keys):
+			d = {}
+			map(d.setdefault, keys)
+			return d
+
+import md5
+def md5_data(iterable):
+	sum = md5.new()
+	for x in iterable:
+		sum.update(x)
+	return sum.hexdigest()
+
+# use fchksum for files if possible, it's faster.
+try:
+	import fchksum
+	md5_file = lambda x: fchksum.fmd5t(x)[0]
+	
+except ImportError:
+	# fall back.
+	def md5_file(path):
+		f = open(path, "rb", 32768)
+		ret = md5_data(f)
+		f.close()
+		return ret
+
+
+def cpuinfo_filter(f):
+	f = open(f, "rb", 32768)
+	ret = md5_data(itertools.ifilterfalse(lambda line: line.lower().startswith("bogomips") or line.lower().startswith("cpu mhz"), f))
+	f.close()
+	return ret
+
+
+class cache(object):
+	compilers_env = ["CC", "CXX", "LD", "CPP", "RANLIB", "STRIP", "AR"]
+	invalidate_env = set(["target_alias", "build_alias", "host_alias"])
+
+	# unused, holding onto it till I know it's not required anymore
+	env_translate = {}
+	conf_args_translate = {"--host":"host_alias", "--build":"build_alias", "--target":"target_alias"}
+	file_translators = {"/proc/cpuinfo":cpuinfo_filter}
+	file_ignores = set(["/proc/uptime", "/proc/loadavg", "/proc/meminfo", "/etc/shadow"])
+	regex_ignores = ["/tmp", "/dev", ".*/ccache"]
+	sandbox_reset_vars = ["SANDBOX_"+x for x in ["READ", "WRITE", "PREDICT"]]
+
+	# for __del__, we still need to be able to unlock
+	fcntl = fcntl
+	
+	def __init__(self, base_dir, env=None, ignores=None, sandboxed=False, debug=0, retry=False):
+		self.base_dir = base_dir
+		self.debug = debug
+		self.retry = retry
+		self.sandboxed = sandboxed
+		self.ensure_dir()
+		self.dir_fd = os.open(base_dir, os.O_RDONLY)
+		self.cache_path = os.path.join(self.base_dir, "config.cache")
+		self.db_path = os.path.join(self.base_dir, "file_md5.db")
+
+		if env is None:
+			env = dict(os.environ)
+		self.env = env
+
+		self.ignores = self.regex_ignores[:]
+		if ignores:
+			self.ignores += ignores
+
+		if self.debug:
+			print "sandboxed=",sandboxed
+
+		if not self.sandboxed:
+			self._munge_sandbox_env()
+
+		self.file_db = None
+		self.sandbox_log = None
+
+		if not self.sandboxed:
+			self.sandbox_path = None
+			for x in self.env.get("PATH", "").split(":"):
+				if os.access(os.path.join(x, "sandbox"), os.X_OK|os.R_OK):
+					self.sandbox_path = os.path.join(x, "sandbox")
+					break
+			if not self.sandbox_path:
+				if not os.access(DEFAULT_SANDBOX_PATH, os.X_OK|os.R_OK):
+					raise Exception("sandbox binary wasn't found in default location(%s), nor path(%s)" % 
+						DEFAULT_SANDBOX_PATH, self.env.get("PATH", "unset"))
+				self.sandbox_path = DEFAULT_SANDBOX_PATH
+		else:
+			self.sandbox_path = None
+		
+	def _munge_sandbox_env(self):
+		if "SANDBOX_ON" in self.env:
+			del self.env["SANDBOX_ON"]
+		for x in self.sandbox_reset_vars:
+			if x in self.env:
+				self.env["CONFCACHE_"+x] = ":".join(filter(None, self.env[x].split(":")))
+				del self.env[x]
+		self.env["CONFCACHE_RESETS"] = " ".join(self.sandbox_reset_vars)
+		if self.debug > 1:
+			self.env["CONFCACHE_DEBUG"] = "1"
+
+	def cleanse_dir(self):
+		for x in os.listdir(self.base_dir):
+			os.unlink(os.path.join(self.base_dir, x))
+	
+	def _verify_compatibility(self):
+		try:
+			return open(os.path.join(self.base_dir, "version"), "r").read().strip() == str(confcache_db_compatibility)
+		except (IOError, OSError),e:
+			return False
+
+	def _update_compatibility(self):
+		open(os.path.join(self.base_dir, "version"), "w").write("%s\n" % confcache_db_compatibility)
+	
+	def mangle_args(self, args):
+		"""returns (disabled, cache path) (adjusts args if cache path is missing)"""
+		new_loc = None
+		i = iter(args)
+		for x in i:
+			if x in ("--cache-file", "--config-cache", "--cache"):
+				if "=" in x:
+					k,v = x.split("=",1)
+					new_loc = v
+				else:
+					try:
+						new_loc = i.next()
+					except StopIteration:
+						# well, someone passed a stupid command to configure.  It'll break.
+						# we don't error out, let configure puke instead
+						return True, None
+
+		if new_loc is None:
+			args.extend(["--cache-file", "config.cache"])
+			new_loc = "config.cache"
+		return False, new_loc
+
+	def run(self, args):
+		os.unsetenv("SANDBOX_ON")
+		args = args[:]
+		disabled, new_loc = self.mangle_args(args)
+		curdir = None
+		for x in args:
+			if x.endswith("/configure"):
+				curdir = os.path.dirname(os.path.realpath(x))
+				break
+		if curdir is None:
+			curdir = os.getcwd()
+		
+		if not disabled and new_loc is None:
+			new_loc = "config.cache"
+
+		if self.debug:
+			print "disabled(%s), new_loc(%s)" % (disabled, new_loc)
+
+		self.write_lock()
+		exists = os.path.exists(self.cache_path)
+		if disabled:
+			print "warning, handed in --cache configure option is going to fail, disabling caching and calling"
+		elif exists:
+			exists = False
+			if not self._verify_compatibility():
+				print "not compatible with this cache"
+				self.cleanse_dir()
+			elif not self._rewrite_env(new_loc, self.flatten_cache_vars(args)):
+				print "cache invalidated due to env"
+				self.cleanse_dir()
+			elif not self._verify_files():
+				print "cache invalidated due to md5"
+				os.unlink(new_loc)
+				self.cleanse_dir()
+			else:
+				exists = True
+		else:
+			print "no cache"
+		fd, self.sandbox_log = tempfile.mkstemp()
+		os.close(fd)
+		self.env["SANDBOX_DEBUG"] = "1"
+		self.env["SANDBOX_DEBUG_LOG"] = self.sandbox_log
+		self.env["SANDBOX_VERBOSE"] = "0"
+		log_existed = os.path.exists(self.sandbox_log)
+		ret = self._execute(curdir, args)
+		status = None
+		if ret == 0:
+			if os.path.exists(new_loc):
+				if not exists:
+					self.file_db = shelve.open(self.db_path)
+				status = self._update(new_loc, curdir)
+
+		if self.file_db is not None:
+			self.file_db.close()
+			self.file_db = None
+		if not status and status is not None:
+			self.cleanse_dir()
+
+		self.unlock()
+		if not log_existed:
+			os.unlink(self.sandbox_log)
+		return ret
+	
+	def _update(self, loc, curdir):
+		if self.ignores:
+			# nuke empty elements, and do escaping
+			sandbox_filter = re.compile("(%s)" % "|".join(map(re.escape, filter(None, self.ignores + [curdir])))).match
+		else:
+			sandbox_filter = lambda x: False
+		slog = open(self.sandbox_log, "r")
+		files = {}
+		failed=False
+		for line in slog:
+			if line.startswith("open_rd:"):
+				f = line.split()[1]
+				if sandbox_filter(f) or f in self.file_ignores:
+					continue
+				if f not in files:
+					try:
+						# yes, stat rather then lstat-  the code that generated this open entry 
+						# operates on the target, thus so should we.
+						st = os.stat(f)
+					except OSError:
+						self.file_db[f] = None
+						continue
+					if not stat.S_ISDIR(st.st_mode):
+						try:
+							if f in self.file_translators:
+								self.file_db[f] = self.file_translators[f](f)
+							else:
+								self.file_db[f] = md5_file(f)
+						except (OSError, IOError), e:
+							print "caught exception working on file %s; %s" % (f, e)
+							failed=True
+							break
+					files[f] = None
+		slog.close()
+		if not failed:
+			shutil.copyfile(loc, self.cache_path)
+			self._update_compatibility()
+		return not failed
+				
+	def _execute(self, rundir, args):
+		if not self.sandboxed:
+			myc = self.sandbox_path
+			self.env["CONFCACHE_DIR_RESET"] = os.getcwd()
+			args = [myc, CONFCACHE_SANDBOX_SCRIPT] + args
+		else:
+			myc = args[0]
+			args = [myc] + args[1:]
+		if self.debug:
+			print "myc,args,",myc,args
+		# for our sanity, we flush prior to exec.  buffering is good, 'cept when it makes things fugly.
+		sys.stdout.flush()
+		sys.stderr.flush()
+		pid=os.fork()
+		if not pid:
+			try:
+				os.execve(myc, args, self.env)
+			except Exception, e:
+				sys.stderr.write("exception caught executing %s: %s" % (myc, e))
+				sys.stderr.flush()
+				os._exit(1)
+		retval = os.waitpid(pid, 0)[1]
+		if retval & 0xff:
+			retval = (retval & 0xff) << 8
+		else:
+			retval >>= 8
+		if self.debug:
+			print "retval was %i" % retval
+		return retval		
+
+	def _verify_files(self):
+		try:
+			valid = True
+			if self.file_db is None:
+				self.file_db = shelve.open(self.db_path)
+			for f, chksum in self.file_db.iteritems():
+				if chksum is None:
+					if os.path.exists(f):
+						print "%s exists, but last run it didn't" % f
+						return False
+				elif f in self.file_translators:
+					if self.file_translators[f](f) != chksum:
+						return False
+				elif not md5_file(f) == chksum:
+					print "f md5 differed",f
+					return False
+		except IOError, ie:
+			print "invalidating during _verify_files due to caught %s", ie
+			return False
+		return True
+	
+	def flatten_cache_vars(self, args):
+		cache_vars = dict(self.env)
+		# note env_translate is reversed
+		for k,v in self.env_translate.items():
+			if k in cache_vars:
+				cache_vars[v] = cache_vars[k]
+				del cache_vars[k]
+
+		i = iter(args)
+		for x in i:
+			if "=" in x:
+				# VAR=val or --opt=val
+				k, v = x.split("=",1)
+				if k.startswith("--"):
+					if k in self.conf_args_translate:
+						cache_vars[self.conf_args_translate[k]] = v
+				elif not k.startswith("-"):
+					cache_vars[self.env_translate.get(k, k)] = v
+					
+			elif x in self.conf_args_translate:
+				try:
+					v = i.next()
+				except StopIteration:
+					# this is a faulty call to configure by the user.
+					# ./configure will puke about it, not our duty to do so.
+					break
+				cache_vars[self.conf_args_translate[x]] = v
+		return cache_vars
+	
+	def _load_progs(self):
+		cache_progs = { }
+		if os.path.exists(self.cache_path):
+			cache = open(self.cache_path, "r")
+			for line in cache:
+				if line.startswith("ac_cv_prog_"):
+					k, unparsed_val = line.split("=", 1)
+					val = unparsed_val.split("=",1)[1].strip().strip("}").strip("'")
+					var = k[11:]
+					if self.debug:
+						print "found prog %s (%s)" % (var, val)
+					cache_progs[var] = val
+		return cache_progs
+
+	def _rewrite_env(self, new_loc, cache_vars):
+		if os.path.exists(self.cache_path):
+			fail = False
+			orig = open(self.cache_path, "r")
+			new = open(new_loc, "w")
+			invalidate_checklist = {}
+			
+			cache_progs = self._load_progs()
+			for line in orig:
+				if line.startswith("ac_cv_env_"):
+					k, val = line.split("=", 1)
+					if k.endswith("_set"):
+						var = k[10:-4]
+						if var in self.invalidate_env:
+							invalidate_checklist.setdefault(var)
+							val = val.rstrip()
+							if self.debug:
+								print "var(%s), env_set env(%s) == cache(%s)" % (var, 
+									var in cache_vars, bool(val))
+							if (var in cache_vars) != bool(cache_vars.get(var, False)):
+								print "invalidated due to env var",var
+								fail = True
+								break
+						if var in cache_vars:
+							new.write("ac_cv_env_%s_set=set\n" % var)
+						else:
+							new.write("ac_cv_env_%s_set=\n" % var)
+
+					elif k.endswith("_value"):
+						var = k[10:-6]
+						if var in self.invalidate_env:
+							invalidate_checklist.setdefault(var)
+							val = val.rstrip()
+							if self.debug:
+								print "var(%s), env(%s) == cache(%s)" % (var, 
+									cache_vars.get(var, "unset") or "unset", val or "unset")
+							if val != cache_vars.get(var, ""):
+								print "failed due to differing env val for",var
+								fail = True
+								break
+						if var in self.compilers_env:
+							invalidate_checklist.setdefault(var)
+							val = val.rstrip()
+							compiler_val = cache_progs.get(var, "unset")
+							if self.debug:
+								print "compiler: var(%s), env(%s), envcache(%s), cache(%s)" % (var, 
+									cache_vars.get(var, "unset"), val or "unset", compiler_val or "unset")
+							if val != cache_vars.get(var, ""):
+								if cache_vars.get(var, "unset") != compiler_val:
+									print "invalidated due to different %s value" % var
+									fail = True
+									break
+								elif self.debug:
+									print "%s is the same in the cache (%s)" % (
+										var, compiler_val)
+						val = cache_vars.get(var, "")
+						if " " in val:
+							val = "'"+val+"'"
+						new.write("ac_cv_env_%s_value=%s\n" % (var, val))
+
+					else:
+						new.write(line)
+				else:
+					new.write(line)
+
+			# done.  seemingly.
+			for x in self.invalidate_env:
+				if x in cache_vars and x not in invalidate_checklist:
+					print "invalidating due to env: internal cache var %s was undefined, is defined now" % x
+					fail = True
+					break
+			if fail:
+				if self.debug:
+					print "failed, removing new cache"
+				os.unlink(new_loc)
+			new.close()
+			orig.close()
+			# var name sucks here
+			return not fail
+		else:
+			return False
+					
+	def write_lock(self):
+		self.fcntl.flock(self.dir_fd, self.fcntl.LOCK_EX)
+
+	def unlock(self):
+		self.fcntl.flock(self.dir_fd, self.fcntl.LOCK_UN)
+
+	def ensure_dir(self):
+		if os.path.exists(self.base_dir):
+			if not stat.S_ISDIR(os.stat(self.base_dir).st_mode):
+				raise Exception("%s must be a dir if it exists!" % loc)
+			if not os.access(self.base_dir, os.X_OK|os.R_OK):
+				raise Exception("%s must be at least redable!" % loc)
+		else:
+			os.mkdir(self.base_dir)
+
+	def __del__(self):
+		if self.file_db is not None:
+			self.file_db.close()
+		if self.dir_fd is not None:
+			self.unlock()
+			os.close(self.dir_fd)
+		
+
+
+if __name__ == "__main__":
+	args = sys.argv[1:]
+	opts = { # opt name: env, arg, required arg, help
+		"confdir":["CONFCACHE_DIR", "--confcache-dir", True, 
+			"specify where to store confcache data.  Must be specified/set."], 
+#		"retry":["CONFCACHE_RETRY", "--confcache-retry", False,
+#			"specify whether to wipe the cache, and try anew on a cache.config failure"],
+		"debug":["CONFCACHE_DEBUG", "--confcache-debug", True,
+			"enable confcache debugging.  requires an int arg"],
+		"ignores":["CONFCACHE_IGNORE", "--confcache-ignore", True,
+			["':' delimited list of patterns to use for ignoring for additions to cache tracking db",
+			"confcache automatically adds the directory ./configure is in"]]
+		}
+		
+		
+	def usage(exit):
+		print "example usage:"
+		print "confcache --confcache-dir dir_for_global_cache ./configure [ configure args ]"
+		print
+		for k,v in opts.items():
+			print "opt %s\nenv %s," % (v[1], v[0]),
+			if isinstance(v[-1], basestring):
+				print "\n  "+v[-1]
+			else:
+				print "\n  "+"\n  ".join(v[-1])
+			print
+		print
+		sys.exit(exit)
+
+	if "--help" in args:
+		usage(0)
+
+	env = dict(os.environ)
+	conf = {}
+
+	#scan env first.
+	for k, v in opts.items():
+		if v[0] is not None and v[0] in env:
+			conf[k] = env[v[0]]
+			del env[v[0]]
+
+	command_args = {}
+	for k,v in opts.items():
+		command_args[v[1]] = k
+	
+	x = 0
+	while x < len(args):
+		k = None
+		if args[x] in command_args:
+			k = command_args[args.pop(x)]
+			v = opts[k]
+			if v[2]:
+				if x == len(args):
+					print "option %s requires an arg" % v[1]
+					usage(1)
+				val = args.pop(x)
+			else:
+				val = True
+		else:
+			for arg in command_args:
+				if args[x].startswith(arg+"="):
+					k,val = args.pop(x).split("=", 1)
+					k = command_args[k]
+					v = opts[k]
+					if not v[2]:
+						print "option %s takes no arg" % v[1]
+						usage(1)
+					break
+		if k is not None:
+			conf[k] = val
+		else:
+			x += 1
+
+	try:	conf_dir = conf.pop("confdir")
+	except KeyError:
+		print "confcache dir was not specified!"
+		usage(1)
+
+	try:
+		conf["debug"] = int(conf.get("debug", 0))
+	except ValueError:
+		print "debug arguements must be a positive int"
+	conf["ignores"] = conf.get("ignores", "").split(":")
+	
+	# multilib sucks, kthnx.
+	sandboxed = len(filter(lambda x: x.startswith("libsandbox.so") or "/libsandbox.so" in x, 
+		env.get("LD_PRELOAD", "").split(":"))) > 0
+
+	
+	if len(args) == 0:
+		print "no arguements specified; nothing for confcache to call, exiting"
+		usage(1)
+	
+	c = cache(conf_dir, env, sandboxed = sandboxed, **conf)
+	#extra_ignores=[os.path.dirname(os.path.realpath(args[0]))], sandboxed=sandboxed, debug=debug)
+	sys.exit(c.run(args))
+	

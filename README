@@ -1,0 +1,47 @@
+Requirements: Python and sandbox.  If you're running a gentoo box, you should have both if you're running a
+Linux arch (sorry bsd folk, sandbox is linux specific right now).
+
+If you're not on Gentoo, well, I suggest you switch. ;)
+Meanwhile, sandbox is available on our mirrors, offhand you need at least sandbox-1.2.12
+It's not the homepage, but it's certainly more friendly-
+http://gentoo-portage.com/sys-apps/sandbox
+Start of the sandbox project page is at 
+http://www.gentoo.org/proj/en/portage/sandbox/index.xml
+
+Installation is pretty straightforward- just run
+./setup.py install
+
+It will install confcache to /usr/bin, and redirect.sh to /usr/share/confcache.
+
+confcache requires a directory to store the global cache in, and for tracking file information.
+This directory is specified either via a commandline --confcache-dir, or pulled from the 
+env var CONFCACHE_DIR
+
+This var _must_ be specified, it's an error calling confcache without it enabled.
+
+Example usage-
+	cd some_source_dir
+	confcache --confcache-dir ~/confcache ./configure
+
+FAQ:
+
+Q) Why aren't all of the configure checks cached?
+A) Because that's how the configure script was written; if it's not written to cache the result of a 
+   test, confcache can't use it.
+
+Q) Why does confcache sometimes disable the cache for a configure run?
+A) Cache is stale.  CHOST and CTARGET changes invalid the cache, as will changing md5 for files
+   the cache tracks.
+
+Q) Confcache doesn't work for me!
+A) Be *specific*; is it caching, but invalidating every run?  what file is invalidating it?  Is the invalidation 
+   valid?  If you've found a file that changes, but the invalidation is questionable (/proc/cpuinfo on cpufreq enabled
+   processors for <=confcache-0.3.4 for example), contact me; if you've got a bug, contact me.  Else, do the leg work and contact
+   me if it still doesn't make sense :)
+
+Q) Confcache invalidates the cache on a false positive!
+A) Are you sure?  Verified that this var varying won't break anything, nor will it easily cause issues
+   with broken configure scripts?  If so, email me please- more info you can provide, the better. :)
+   
+~harring
+ferringb@gmail.com

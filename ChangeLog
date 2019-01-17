@@ -1,0 +1,468 @@
+------------------------------------------------------------
+revno: 58
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Wed 2006-02-22 01:06:53 -0800
+message:
+  version 0.4.2
+------------------------------------------------------------
+revno: 57
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Wed 2006-02-22 01:06:29 -0800
+message:
+  reworked locking; earlier code assumped flock was atomic for shared -> exclusive transition, which it isn't.
+  Could use lockf, but I like locking directories rather then files, so... we're going this route.
+------------------------------------------------------------
+revno: 56
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Wed 2006-02-22 00:54:24 -0800
+message:
+  better handling of _update for files where perms disallow access to a file, plus ixnay'ing /etc/shadow
+------------------------------------------------------------
+revno: 55
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-09 01:38:43 -0800
+message:
+  changing the email over to gmail
+------------------------------------------------------------
+revno: 54
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Mon 2006-02-06 22:30:33 -0800
+message:
+  releasing 0.4.1, bug release to revert the required python version to 2.2
+------------------------------------------------------------
+revno: 53
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Mon 2006-02-06 22:10:25 -0800
+message:
+  and... we're back down to 2.2 as the python requirement.
+------------------------------------------------------------
+revno: 52
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 05:17:45 -0800
+message:
+  added version in, and renamed version
+------------------------------------------------------------
+revno: 51
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 05:17:24 -0800
+message:
+  rename
+------------------------------------------------------------
+revno: 50
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 05:10:00 -0800
+message:
+  0.4
+------------------------------------------------------------
+revno: 49
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 04:18:38 -0800
+message:
+  fixed cpuinfo filtering so it's not case sensitive
+------------------------------------------------------------
+revno: 48
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 03:48:47 -0800
+message:
+  cleaned up versions parsing a bit
+------------------------------------------------------------
+revno: 47
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 03:09:57 -0800
+message:
+  further cleanup...
+------------------------------------------------------------
+revno: 46
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 03:08:11 -0800
+message:
+  cleanup
+------------------------------------------------------------
+revno: 45
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 03:06:51 -0800
+message:
+  yay, setup.py's version tag is controlled by the versions file now...
+------------------------------------------------------------
+revno: 44
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 03:00:31 -0800
+message:
+  el bumpo the version, since the file translator was 0.4  version... 0.3.9 being the rc effectively
+------------------------------------------------------------
+revno: 43
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 02:58:46 -0800
+message:
+  whee.  knew I had to add file_translators for both update, and verify, just got sidetracked by gentoo crap and forgot to add 
+  the change to verify_files ;)
+------------------------------------------------------------
+revno: 42
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 01:46:32 -0800
+message:
+  updated Q/A since the /proc/cpuinfo case shouldn't matter anymore.
+------------------------------------------------------------
+revno: 41
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Thu 2006-02-02 01:43:08 -0800
+message:
+  added translators for handling files that change md5 (expected) due to data we don't need to track, but we *still* need to track some data
+  /proc/cpuinfo on a cpufreq enabled kernel fex; changing mhz invalidates the cache each time
+  
+  Aside from that, added a few more files to the blacklist.
+  
+  The funny one was /proc/uptime invalidating the cache every run- sucked for the user, but I think that's classic ;)
+------------------------------------------------------------
+revno: 40
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Tue 2006-01-31 05:28:16 -0800
+message:
+  fixed issue where symlink pointing to a directory could result in trying to md5 chksum a directory
+------------------------------------------------------------
+revno: 39
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Tue 2006-01-31 02:46:40 -0800
+message:
+  set actual version in setup.py
+------------------------------------------------------------
+revno: 38
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Tue 2006-01-31 02:42:44 -0800
+message:
+  versions file, used for mapping version releases to a specific revid.
+  version 0.3.4
+------------------------------------------------------------
+revno: 37
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Sat 2006-01-14 05:06:12 -0800
+message:
+  set the sandbox instantiation cwd reset to the actual reset, rather then the dirname configure is in.
+------------------------------------------------------------
+revno: 36
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Sat 2006-01-14 04:56:39 -0800
+message:
+  experimental ac_*_prog handling from flameeyes
+    ------------------------------------------------------------
+    merged: flame@enterprise-20060114121858-677d583efe64fb9c
+    committer: flame <flame@enterprise>
+    timestamp: Sat 2006-01-14 13:18:58 +0100
+    message:
+      Check programs (that uses $CHOST) for definition against ac_cv_prog_* cache vars, too. Avoid invalidating when not needed.
+------------------------------------------------------------
+revno: 35
+committer: Brian Harring <ferringb@gentoo.org>
+branch nick: confcache
+timestamp: Sat 2006-01-14 02:08:05 -0800
+message:
+  merge of flameeyes printf fixup.
+    ------------------------------------------------------------
+    merged: flame@enterprise-20060114094911-5fda92aee41e1aac
+    committer: flame <flame@enterprise>
+    timestamp: Sat 2006-01-14 10:49:11 +0100
+    message:
+      Replace %f with %s, to avoid tracebacks.
+------------------------------------------------------------
+revno: 34
+committer: bharring
+branch nick: confcache
+timestamp: Mon 2005-12-26 08:55:32 -0800
+message:
+  [project @ 2005-12-26 08:55:32 by bharring]
+  command arg handling fix ups.
+------------------------------------------------------------
+revno: 33
+committer: bharring
+branch nick: confcache
+timestamp: Tue 2005-11-22 02:36:09 -0800
+message:
+  [project @ 2005-11-22 02:36:09 by bharring]
+  0.3.3
+------------------------------------------------------------
+revno: 32
+committer: bharring
+branch nick: confcache
+timestamp: Tue 2005-11-22 02:35:52 -0800
+message:
+  [project @ 2005-11-22 02:35:52 by bharring]
+  dev notes.
+------------------------------------------------------------
+revno: 31
+committer: bharring
+branch nick: confcache
+timestamp: Tue 2005-11-22 01:43:22 -0800
+message:
+  [project @ 2005-11-22 01:43:22 by bharring]
+  Ed Catmur pointed out a nice buggy in the sandbox parsing code- directories with regex chars in it pisses off regex compiler.
+  So, map all ignores through re.escape.  Also added a filter to remove empty ignore fields from the regex.
+------------------------------------------------------------
+revno: 30
+committer: bharring
+branch nick: confcache
+timestamp: Sat 2005-11-19 14:39:18 -0800
+message:
+  [project @ 2005-11-19 14:39:18 by bharring]
+  added false positive faq
+------------------------------------------------------------
+revno: 29
+committer: bharring
+branch nick: confcache
+timestamp: Sat 2005-11-19 14:34:26 -0800
+message:
+  [project @ 2005-11-19 14:34:26 by bharring]
+  0.3.2?
+------------------------------------------------------------
+revno: 28
+committer: bharring
+branch nick: confcache
+timestamp: Sat 2005-11-19 14:34:07 -0800
+message:
+  [project @ 2005-11-19 14:34:07 by bharring]
+  env vars are (for shell) basically tertiary; handle it the same way internally.
+  unset != '' , and configure _is_ aware of set vs unset, so handle it in the same manner.
+------------------------------------------------------------
+revno: 27
+committer: bharring
+branch nick: confcache
+timestamp: Fri 2005-11-18 15:11:17 -0800
+message:
+  [project @ 2005-11-18 15:11:17 by bharring]
+  only scan for invalidators if we haven't failed already, and --cache => --cache-file in warning about impeding failure from configure args
+------------------------------------------------------------
+revno: 26
+committer: bharring
+branch nick: confcache
+timestamp: Fri 2005-11-18 14:43:11 -0800
+message:
+  [project @ 2005-11-18 14:43:11 by bharring]
+  tagging 0.3.1 as version
+------------------------------------------------------------
+revno: 25
+committer: bharring
+branch nick: confcache
+timestamp: Fri 2005-11-18 14:42:44 -0800
+message:
+  [project @ 2005-11-18 14:42:44 by bharring]
+  override of sdist so default is bztar, and so that it generates ChangeLog automatically.
+------------------------------------------------------------
+revno: 24
+committer: bharring
+branch nick: confcache
+timestamp: Fri 2005-11-18 14:37:36 -0800
+message:
+  [project @ 2005-11-18 14:37:36 by bharring]
+  Added a couple more invalidator's for env handling,
+  fixed up env_translate bugs via ed catmur pointing out a NameError, and me digging into it a bit- corrects misses on env rewrites now
+  fixed LD_PRELOAD detection so that it works on multilib boxes that don't specify full path for sandbox lib
+  tagged in debug output for ret, rather then being silent
+  finally, whitespace clean up
+------------------------------------------------------------
+revno: 23
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 15:15:31 -0800
+message:
+  [project @ 2005-11-16 15:15:31 by bharring]
+  update of the new sandbox project page
+------------------------------------------------------------
+revno: 22
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 15:08:46 -0800
+message:
+  [project @ 2005-11-16 15:08:46 by bharring]
+  install ChangeLog
+------------------------------------------------------------
+revno: 21
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 15:03:25 -0800
+message:
+  [project @ 2005-11-16 15:03:25 by bharring]
+  bumping to 0.3 since the configure overhaul warrants it
+------------------------------------------------------------
+revno: 20
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 15:02:22 -0800
+message:
+  [project @ 2005-11-16 15:02:22 by bharring]
+  added changelog
+------------------------------------------------------------
+revno: 19
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 15:01:53 -0800
+message:
+  [project @ 2005-11-16 15:01:53 by bharring]
+  disabling retry for the time being.  need some heavy restructuring to handle that.
+------------------------------------------------------------
+revno: 18
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 14:51:11 -0800
+message:
+  [project @ 2005-11-16 14:51:11 by bharring]
+  fixed help output so it's not god awful
+------------------------------------------------------------
+revno: 17
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 14:46:53 -0800
+message:
+  [project @ 2005-11-16 14:46:53 by bharring]
+  yay, slightly massive rewrite.
+  Roughly, it's not aware of the configure options passed to configure, so we can handle --build --host --target, etc, settings.
+------------------------------------------------------------
+revno: 16
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 08:04:26 -0800
+message:
+  [project @ 2005-11-16 08:04:26 by bharring]
+  debugging information, removed ctarget next is command line arg awareness :/
+------------------------------------------------------------
+revno: 15
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 00:29:41 -0800
+message:
+  [project @ 2005-11-16 00:29:41 by bharring]
+  moved readme/copying
+------------------------------------------------------------
+revno: 14
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 00:24:40 -0800
+message:
+  [project @ 2005-11-16 00:24:40 by bharring]
+  added pseudo upstream for sandbox
+------------------------------------------------------------
+revno: 13
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 00:14:22 -0800
+message:
+  [project @ 2005-11-16 00:14:22 by bharring]
+  added a quick faq/install instructions, and added installation of those files.
+------------------------------------------------------------
+revno: 12
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 00:02:29 -0800
+message:
+  [project @ 2005-11-16 00:02:29 by bharring]
+  search the $PATH for sandbox binary, falling back to a default location, then failing
+------------------------------------------------------------
+revno: 11
+committer: bharring
+branch nick: confcache
+timestamp: Wed 2005-11-16 00:01:59 -0800
+message:
+  [project @ 2005-11-16 00:01:59 by bharring]
+  cleanup (no need for the install_data import)
+------------------------------------------------------------
+revno: 10
+committer: bharring
+branch nick: confcache
+timestamp: Tue 2005-11-15 23:44:16 -0800
+message:
+  [project @ 2005-11-15 23:44:16 by bharring]
+  distutils is pissy.
+------------------------------------------------------------
+revno: 9
+committer: bharring
+branch nick: confcache
+timestamp: Tue 2005-11-15 23:37:44 -0800
+message:
+  [project @ 2005-11-15 23:37:44 by bharring]
+  redirect.sh is used to reset sandbox_{read,write,prefix} inside a new sandbox shell; confcache now works for non-sandboxed initial calls (userpriv fex)
+------------------------------------------------------------
+revno: 8
+committer: bharring
+branch nick: confcache
+timestamp: Tue 2005-11-15 00:30:10 -0800
+message:
+  [project @ 2005-11-15 00:30:10 by bharring]
+  0.1.1 bump
+------------------------------------------------------------
+revno: 7
+committer: bharring
+branch nick: confcache
+timestamp: Tue 2005-11-15 00:28:12 -0800
+message:
+  [project @ 2005-11-15 00:28:12 by bharring]
+  fix so it actually passes args to the command properly
+------------------------------------------------------------
+revno: 6
+committer: bharring
+branch nick: confcache
+timestamp: Mon 2005-11-14 22:53:31 -0800
+message:
+  [project @ 2005-11-14 22:53:31 by bharring]
+  generalized confcache dir cleansing,
+  moved write_lock for updates so it's accurate
+------------------------------------------------------------
+revno: 5
+committer: bharring
+branch nick: confcache
+timestamp: Mon 2005-11-14 21:31:40 -0800
+message:
+  [project @ 2005-11-14 21:31:40 by bharring]
+  removed superflous prints
+------------------------------------------------------------
+revno: 4
+committer: bharring
+branch nick: confcache
+timestamp: Mon 2005-11-14 21:19:56 -0800
+message:
+  [project @ 2005-11-14 21:19:56 by bharring]
+  header tweaks
+------------------------------------------------------------
+revno: 3
+committer: bharring
+branch nick: confcache
+timestamp: Mon 2005-11-14 21:19:00 -0800
+message:
+  [project @ 2005-11-14 21:18:59 by bharring]
+  header additions, and touchups to build crap
+------------------------------------------------------------
+revno: 2
+committer: bharring
+branch nick: confcache
+timestamp: Mon 2005-11-14 21:10:54 -0800
+message:
+  [project @ 2005-11-14 21:10:54 by bharring]
+  distutils initial script
+------------------------------------------------------------
+revno: 1
+committer: bharring
+branch nick: confcache
+timestamp: Mon 2005-11-14 20:47:58 -0800
+message:
+  [project @ 2005-11-14 20:47:58 by bharring]
+  Initial revision
